@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🎉 尾牙瘋狂賓果夜 🎉</title>
-    <script src="https://unpkg.com"></script>
-    <script src="https://cloudflare.com"></script>
     <script src="https://cloudflare.com"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
@@ -16,15 +14,13 @@
         .btn { background: linear-gradient(90deg, #ff416c, #ff4b2b); color: white; border: none; padding: 12px 24px; font-size: 1.1rem; font-weight: bold; border-radius: 30px; cursor: pointer; margin: 10px; }
         .btn-secondary { background: linear-gradient(90deg, #00b4db, #0083b0); }
         .game-panel { display: none; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 16px; }
-        .status-bar { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem; border-left: 4px solid #ff4b2b; }
         .bingo-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 15px; aspect-ratio: 1/1; }
-        .cell { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; cursor: pointer; aspect-ratio: 1/1; }
+        .cell { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: bold; cursor: pointer; aspect-ratio: 1/1; color: white; }
         .cell.marked { background: linear-gradient(135deg, #00b4db, #0083b0); border-color: #00b4db; box-shadow: 0 0 12px rgba(0,180,219,0.6); }
         .cell.free-cell { background: linear-gradient(135deg, #ff416c, #ff4b2b); border-color: #ff416c; font-size: 0.9rem; }
         .host-controls { text-align: center; }
-        .current-number { font-size: 4rem; font-weight: 900; color: #ffd700; margin: 15px 0; }
-        .history-numbers { background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; min-height: 50px; word-break: break-all; color: #ccc; }
-        #qrcode-container { background: white; padding: 15px; border-radius: 8px; display: inline-block; margin: 15px auto; }
+        .current-number { font-size: 5rem; font-weight: 900; color: #ffd700; margin: 15px 0; text-shadow: 0 0 20px rgba(255,215,0,0.5); }
+        .history-numbers { background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px; min-height: 60px; word-break: break-all; color: #ccc; font-size: 1.1rem; line-height: 1.5; }
         .win-banner { display: none; background: linear-gradient(90deg, #ffe259, #ffa751); color: #000; padding: 12px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 1.2rem; }
     </style>
 </head>
@@ -32,95 +28,69 @@
     <div class="container">
         <h1>🎉 尾牙瘋狂賓果夜 🎉</h1>
         <div id="win-banner" class="win-banner">🏆 恭喜！您已達成賓果連線！🏆</div>
+        
+        <!-- 角色選擇 -->
         <div id="role-section" class="role-selection">
             <p style="margin-bottom: 15px;">請選擇您在本次遊戲中的角色：</p>
-            <button class="btn" onclick="initGame('host')">我是主辦人 (大螢幕)</button>
+            <button class="btn" onclick="initGame('host')">我是主辦人 (投大螢幕)</button>
             <button class="btn btn-secondary" onclick="initGame('player')">我是抽獎玩家 (手機端)</button>
         </div>
+
+        <!-- 主辦人控制台 -->
         <div id="host-panel" class="game-panel">
-            <div class="status-bar">
-                <div>房間狀態：<span id="host-status" style="color:#00ffcc;">正在建立房間...</span></div>
-                <div>連線 ID: <span id="room-id-display">--</span></div>
-            </div>
             <div class="host-controls">
-                <button class="btn" id="draw-btn" onclick="drawNumber()">🎲 抽出下一個號碼</button>
+                <button class="btn" onclick="drawNumber()">🎲 抽出下一個號碼</button>
                 <div class="current-number" id="box-number">--</div>
-                <p>已開出號碼歷史：</p>
+                <p style="margin-bottom: 5px;">已開出號碼歷史：</p>
                 <div class="history-numbers" id="history-box">暫無號碼</div>
-                <div style="margin-top:20px;">
-                    <p>請玩家掃描下方 QR Code 加入房間：</p>
-                    <div id="qrcode-container"></div>
-                </div>
             </div>
         </div>
+
+        <!-- 玩家賓果卡 -->
         <div id="player-panel" class="game-panel">
-            <div class="status-bar">
-                <div>連線狀態：<span id="player-status" style="color:#ffcc00;">等待輸入房間密鑰...</span></div>
-                <div id="player-room-info" style="margin-top:5px; font-size:0.8rem; color:#aaa;"></div>
-            </div>
-            <div id="join-form" style="text-align: center; margin-bottom: 15px;">
-                <input type="text" id="input-room-id" placeholder="輸入大螢幕連線 ID" style="padding:10px; width:60%; border-radius:8px; border:none; text-align:center;">
-                <button class="btn btn-secondary" style="padding:10px 15px; font-size:1rem; margin:0 0 0 5px;" onclick="connectToHost(document.getElementById('input-room-id').value)">加入</button>
-            </div>
+            <p style="text-align: center; font-size: 0.9rem; color: #aaa;">💡 點擊對應數字可以標記或取消變色</p>
             <div class="bingo-board" id="bingo-board"></div>
         </div>
     </div>
+
     <script>
-        let peer=null, conn=null, connections=[], myRole='', drawnNumbers=new Set(), playerBoard=[], markedCells=Array(25).fill(false);
-        const noSleep = new NoSleep();
+        let myRole = '';
+        let drawnNumbers = new Set(); 
+        let playerBoard = []; 
+        let markedCells = Array(25).fill(false); 
+        const noSleep = new NoSleep(); 
+
         window.addEventListener('beforeunload', (e) => { e.preventDefault(); e.returnValue = '確定離開？'; });
+        
         function initGame(role) {
-            myRole = role; document.getElementById('role-section').style.display = 'none'; noSleep.enable();
+            myRole = role; 
+            document.getElementById('role-section').style.display = 'none'; 
+            noSleep.enable(); 
             if (role === 'host') {
-                document.getElementById('host-panel').style.display = 'block'; setupHostPeer();
+                document.getElementById('host-panel').style.display = 'block'; 
             } else {
-                document.getElementById('player-panel').style.display = 'block'; generateBingoCard();
-                const rId = new URLSearchParams(window.location.search).get('room');
-                if (rId) { document.getElementById('join-form').style.display = 'none'; connectToHost(rId); }
+                document.getElementById('player-panel').style.display = 'block'; 
+                generateBingoCard();
             }
         }
-        function setupHostPeer() {
-            const shortId = Math.floor(1000 + Math.random() * 9000).toString();
-            peer = new Peer('bingo-room-' + shortId, { debug: 1 });
-            peer.on('open', () => {
-                document.getElementById('host-status').innerText = '🟢 房間已開放，等待同仁加入...';
-                document.getElementById('room-id-display').innerText = shortId;
-                const joinUrl = `${window.location.origin}${window.location.pathname}?room=${shortId}`;
-                document.getElementById('qrcode-container').innerHTML = '';
-                new QRCode(document.getElementById('qrcode-container'), { text: joinUrl, width: 150, height: 150 });
-            });
-            peer.on('connection', (c) => {
-                connections.push(c); document.getElementById('host-status').innerText = `🟢 房間已開放，目前已有 ${connections.length} 位同仁加入`;
-                c.on('open', () => { c.send({ type: 'SYNC_HISTORY', data: Array.from(drawnNumbers) }); });
-            });
-            peer.on('error', (err) => { if(err.type === 'unavailable-id') { setupHostPeer(); } else { alert('連線失敗: ' + err.type); } });
-        }
+        
         function drawNumber() {
-            if (drawnNumbers.size >= 75) return alert('號碼已抽完！');
-            let n; do { n = Math.floor(Math.random() * 75) + 1; } while (drawnNumbers.has(n));
+            if (drawnNumbers.size >= 75) return alert('75個號碼已全數抽完！');
+            let n; 
+            do { n = Math.floor(Math.random() * 75) + 1; } while (drawnNumbers.has(n));
             drawnNumbers.add(n);
             document.getElementById('box-number').innerText = n;
             document.getElementById('history-box').innerText = Array.from(drawnNumbers).reverse().join(', ');
-            connections.forEach(c => { if (c.open) c.send({ type: 'NEW_NUMBER', data: n }); });
         }
-        function connectToHost(tId) {
-            document.getElementById('player-status').innerText = '正在連線大螢幕...'; peer = new Peer();
-            peer.on('open', () => {
-                conn = peer.connect('bingo-room-' + tId);
-                conn.on('open', () => {
-                    document.getElementById('player-status').innerText = '🟢 已成功連線！請專心對獎！';
-                    document.getElementById('player-status').style.color = '#00ffcc';
-                    document.getElementById('join-form').style.display = 'none';
-                    document.getElementById('player-room-info').innerText = `房間號碼: ${tId}`;
-                });
-                conn.on('data', (p) => {
-                    if (p.type === 'NEW_NUMBER') { if (navigator.vibrate) navigator.vibrate(200); alert(`大螢幕開出號碼：【 ${p.data} 】`); }
-                });
-                conn.on('close', () => { document.getElementById('player-status').innerText = '🔴 連線中斷，請重新整理。'; document.getElementById('player-status').style.color = '#ff416c'; });
-            });
-        }
+        
         function generateBingoCard() {
-            const shuffle = (arr) => { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; };
+            const shuffle = (arr) => { 
+                for (let i = arr.length - 1; i > 0; i--) { 
+                    const j = Math.floor(Math.random() * (i + 1)); 
+                    [arr[i], arr[j]] = [arr[j], arr[i]]; 
+                } 
+                return arr; 
+            };
             const cols = [
                 shuffle(Array.from({length: 15}, (_, i) => i + 1)).slice(0, 5),
                 shuffle(Array.from({length: 15}, (_, i) => i + 16)).slice(0, 5),
@@ -130,11 +100,61 @@
             ];
             playerBoard = [];
             for (let r = 0; r < 5; r++) {
-                for (let c = 0; c < 5; c++) { if (r === 2 && c === 2) { playerBoard.push("FREE"); } else { playerBoard.push(cols[c][r]); } }
+                for (let c = 0; c < 5; c++) { 
+                    if (r === 2 && c === 2) { playerBoard.push("FREE"); } 
+                    else { playerBoard.push(cols[c][r]); } 
+                }
             }
             renderBoard();
         }
+        
         function renderBoard() {
-            const b = document.getElementById('bingo-board'); b.innerHTML = '';
+            const b = document.getElementById('bingo-board'); 
+            b.innerHTML = '';
             playerBoard.forEach((v, i) => {
-                const el = document.createElement('div'); el.classList.add('cell');
+                const el = document.createElement('div'); 
+                el.classList.add('cell');
+                if (v === "FREE") { 
+                    el.classList.add('free-cell'); 
+                    el.innerText = "FREE"; 
+                    markedCells[i] = true; 
+                } else { 
+                    el.innerText = v; 
+                    el.addEventListener('click', () => toggleCell(i)); 
+                }
+                if (markedCells[i]) el.classList.add('marked');
+                b.appendChild(el);
+            });
+        }
+        
+        function toggleCell(i) { 
+            markedCells[i] = !markedCells[i]; 
+            renderBoard(); 
+            checkBingo(); 
+        }
+        
+        function checkBingo() {
+            let l = 0;
+            // 檢查橫線
+            for (let i = 0; i < 5; i++) { 
+                if (markedCells[i*5] && markedCells[i*5+1] && markedCells[i*5+2] && markedCells[i*5+3] && markedCells[i*5+4]) l++; 
+            }
+            // 檢查直線
+            for (let i = 0; i < 5; i++) { 
+                if (markedCells[i] && markedCells[i+5] && markedCells[i+10] && markedCells[i+15] && markedCells[i+20]) l++; 
+            }
+            // 檢查對角線
+            if (markedCells[0] && markedCells[6] && markedCells[12] && markedCells[18] && markedCells[24]) l++;
+            if (markedCells[4] && markedCells[8] && markedCells[12] && markedCells[16] && markedCells[20]) l++;
+            
+            const banner = document.getElementById('win-banner');
+            if (l > 0) {
+                banner.style.display = 'block';
+                banner.innerText = `🏆 恭喜！您已達成 ${l} 條賓果連線！🏆`;
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
