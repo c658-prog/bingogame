@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <!-- 行動端關鍵設定：禁止使用者雙擊放大、保持 1:1 完美視覺比例 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+    <title>🎉 尾牙瘋狂賓果夜 🎉</title>
+    
+    <!-- 引入 PeerJS 用於 30 人免後端即時連線同步 -->
+    <script src="https://unpkg.com"></script>
+    <!-- 引入 NoSleep.js 防止手機玩到一半螢幕自動休眠變暗 -->
+    <script src="https://cloudflare.com"></script>
+    <!-- 引入 QR Code 產生器，方便主辦人展示 QRCode 讓大家掃描 -->
+    <script src="https://cloudflare.com"></script>
+
+    <style>
+        /* --- 基礎防錯與美化 --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent; /* 移除 iOS 點擊陰影 */
+            user-select: none; /* 防止手機長按選取文字 */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #1a0b2e 0%, #3b154c 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding-bottom: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.6rem;
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            margin-top: 10px;
+        }
+
+        /* --- 角色選擇區 --- */
+        .role-selection {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(90deg, #ff416c, #ff4b2b);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(255, 75, 43, 0.4);
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-secondary { background: linear-gradient(90deg, #00b4db, #0083b0); box-shadow: 0 4px 15px rgba(0, 180, 219, 0.4); }
+
+        /* --- 遊戲主面板 --- */
+        .game-panel {
+            display: none;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-bar {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            border-left: 4px solid #ff4b2b;
+        }
+
+        /* --- 賓果卡片 (5x5 Grid) --- */
+        .bingo-board {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+            aspect-ratio: 1 / 1; /* 保持正方形 */
+        }
+
+        .cell {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        /* 被官方抽中且玩家有點擊標記的樣式 */
+        .cell.marked {
+            background: linear-gradient(135deg, #00b4db, #0083b0);
+            border-color: #00b4db;
+            box-shadow: 0 0 12px rgba(0, 180, 219, 0.6);
+            animation: pop 0.3s ease-out;
+        }
+
+        /* 中間免費格 */
+        .cell.free-cell {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            border-color: #ff416c;
+            font-size: 0.9rem;
+        }
+
+        /* --- 主辦人開獎控制台 --- */
+        .host-controls {
+            text-align: center;
+        }
+        .current-number {
+            font-size: 4rem;
+            font-weight: 900;
+            color: #ffd700;
+            margin: 15px 0;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+        }
+        .history-numbers {
+            background: rgba(0,0,0,0.4);
+            padding: 10px;
+            border-radius: 8px;
+            min-height: 50px;
+            word-break: break-all;
+            color: #ccc;
+            font-size: 0.9rem;
+        }
+
+        /* --- 連線與 QRCode 彈窗 --- */
+        #qrcode-container {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 15px auto;
+        }
+        
+        .info-text { color: #aaa; font-size: 0.85rem; margin-top: 5px; }
+        .win-banner {
+            display: none;
+            background: linear-gradient(90deg, #ffe259, #ffa751);
+            color: #000;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* 動畫效果 */
+        @keyframes pop {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        @keyframes pulse {
+            0% { opacity: 0.9; transform: scale(0.98); }
+            50% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0.9; transform: scale(0.98); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🎉 尾牙瘋狂賓果夜 🎉</h1>
+        <div id="win-banner" class="win-banner">恭喜！您已達成賓果連線！🏆</div>
+
+        <!-- 步驟 1：角色選擇區 -->
+        <div id="role-section" class="role-selection">
+            <p style="margin-bottom: 15px; color: #ddd;">請選擇您在本次遊戲中的角色：</p>
+            <button class="btn" onclick="initGame('host')">我是主辦人 (大螢幕)</button>
+            <button class="btn btn-secondary" onclick="initGame('player')">我是抽獎玩家 (手機端)</button>
+        </div>
+
+        <!-- 步驟 2：主辦人主面板 -->
+        <div id="host-panel" class="game-panel">
+            <div class="status-bar">
+                <div>房間狀態：<span id="host-status" style="color:#00ffcc;">正在建立房間...</span></div>
+                <div class="info-text">連線 ID: <span id="room-id-display">--</span></div>
+            </div>
+            <div class="host-controls">
+                <button class="btn" id="draw-btn" onclick="drawNumber()">🎲 抽出下一個號碼</button>
+                <div class="current-number" id="box-number">--</div>
+                <p>已開出號碼歷史：</p>
+                <div class="history-numbers" id="history-box">暫無號碼</div>
+                
+                <div id="qrcode-area" style="margin-top:20px;">
+                    <p>請玩家掃描下方 QR Code 加入房間：</p>
+                    <div id="qrcode-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 步驟 3：玩家手機面板 -->
+        <div id="player-panel" class="game-panel">
+            <div class="status-bar">
+                <div>連線狀態：<span id="player-status" style="color:#ffcc00;">等待輸入房間密鑰...</span></div>
+                <div id="player-room-info" style="margin-top: 5px; font-size: 0.8rem; color:#aaa;"></div>
+            </div>
+            
+            <!-- 手機端手動輸入大螢幕 ID 的區域（如果是直接掃 QRCode 則會自動跳過此步驟） -->
+            <div id="join-form" style="text-align: center; margin-bottom: 15px;">
+                <input type="text" id="input-room-id" placeholder="請輸入主辦人畫面的連線 ID" style="padding: 10px; width: 70%; border-radius: 8px; border: none; font-size: 1rem; text-align: center;">
+                <button class="btn btn-secondary" style="padding: 10px 20px; font-size: 1rem;" onclick="connectToHost(document.getElementById('input-room-id').value)">加入</button>
+            </div>
+
+            <p style="text-align: center; font-size: 0.9rem; color: #999;">💡 提示：點擊已被大螢幕開出的數字來標記連線！</p>
+            <!-- 賓果 5x5 卡片區 -->
+            <div class="bingo-board" id="bingo-board"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 全域變數定義 ---
+        let peer = null;
+        let conn = null; // 玩家端持有的連線物件
+        let connections = []; // 主辦人端持有的所有玩家連線陣列 (供 30 人廣播)
+        let myRole = '';
+        let drawnNumbers = new Set(); // 主辦人抽出的號碼池
+        let playerBoard = []; // 玩家各自的 5x5 卡片陣列
+        let markedCells = Array(25).fill(false); // 玩家點擊標記狀態 (一維陣列對應 0~24)
+        
+        const noSleep = new NoSleep(); // 初始化防止休眠套件
+
+        // --- 行動端環境防錯機制 ---
+        // 1. 防止尾牙進行中因手指誤觸「向左滑」或「上一頁」導致遊戲中斷
+        window.addEventListener('beforeunload', (e) => {
+            e.preventDefault();
+            e.returnValue = '遊戲正在進行中，離開將遺失目前的賓果卡片！';
+        });
+
+        // 2. 頁面載入時嘗試從瀏覽器暫存(localStorage)救回先前的卡片紀錄，避免意外重新整理
+        window.addEventListener('load', () => {
+            if (localStorage.getItem('saved_board')) {
+                console.log('偵測到未完成的遊戲紀錄，可供稍後復原。');
+            }
+        });
+
+        // --- 核心邏輯 1：初始化角色與遊戲 ---
+        function initGame(role) {
+            myRole = role;
+            document.getElementById('role-section').style.display = 'none';
+            
+            // 啟用防止手機螢幕休眠（必須在使用者點擊事件中觸發）
+            noSleep.enable();
+
+            if (role === 'host') {
+                document.getElementById('host-panel').style.display = 'block';
+                setupHostPeer();
+            } else {
